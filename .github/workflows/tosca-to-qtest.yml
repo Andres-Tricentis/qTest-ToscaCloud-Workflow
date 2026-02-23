@@ -1,0 +1,132 @@
+# Tosca Cloud → JUnit → GitHub Artifact + qTest Pulse
+# Run manually (workflow_dispatch) or from qTest Pulse (repository_dispatch).
+# Set secrets and variables in repo Settings → Secrets and variables → Actions.
+# See qTest/qTest-Tosca-Integration/README.md for setup.
+
+name: Tosca to qTest (Pulse)
+
+on:
+  workflow_dispatch:
+  repository_dispatch:
+    types: [tosca-run]
+
+env:
+  # Set in repo Variables (or here for testing). Replace with your qTest project and test cycle IDs.
+  QTEST_PROJECT_ID: ${{ vars.QTEST_PROJECT_ID }}
+  QTEST_TEST_CYCLE_ID: ${{ vars.QTEST_TEST_CYCLE_ID }}
+
+jobs:
+  tosca-to-qtest:
+    name: Run Tosca → JUnit → Pulse
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Get Tosca access token
+        id: token
+        env:
+          E2G_AUTH_URL: ${{ secrets.TOSCA_E2G_AUTH_URL }}
+          CLIENT_ID: ${{ secrets.TOSCA_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.TOSCA_CLIENT_SECRET }}
+        run: |
+          RESP=$(curl -s -X POST "$E2G_AUTH_URL" \
+            -H "Content-Type: application/x-www-form-urlencoded" \
+            -d "client_id=$CLIENT_ID&client_secret=$CLIENT_SECRET&scope=tta&grant_type=client_credentials")
+          TOKEN=$(echo "$RESP" | jq -r '.access_token')
+          if [ -z "$TOKEN" ] || [ "$TOKEN" = "null" ]; then
+            echo "Failed to get token: $RESP"
+            exit 1
+          fi
+          echo "token=$TOKEN" >> $GITHUB_OUTPUT
+
+      - name: Trigger Tosca playlist run
+        id: trigger
+        env:
+          TOSCA_CLOUD_URL: ${{ secrets.TOSCA_CLOUD_URL }}
+          PLAYLIST_ID: ${{ secrets.TOSCA_PLAYLIST_ID }}
+          TOKEN: ${{ steps.token.outputs.token }}
+        run: |
+          RESP=$(curl -s -X POST "$TOSCA_CLOUD_URL/_playlists/api/v2/playlistRuns/" \
+            -H "Authorization: Bearer $TOKEN" \
+            -H "Content-Type: application/json" \
+            -H "Accept: application/json" \
+            -d "{\"playlistId\":\"$PLAYLIST_ID\",\"private\":false}")
+          EXEC_ID=$(echo "$RESP" | jq -r '.executionId // .id // empty')
+          if [ -z "$EXEC_ID" ]; then
+            echo "Failed to trigger run: $RESP"
+            exit 1
+          fi
+          echo "execution_id=$EXEC_ID" >> $GITHUB_OUTPUT
+          echo "Triggered execution: $EXEC_ID"
+
+      - name: Wait for Tosca run to complete
+        id: poll
+        env:
+          TOSCA_CLOUD_URL: ${{ secrets.TOSCA_CLOUD_URL }}
+          TOKEN: ${{ steps.token.outputs.token }}
+          EXECUTION_ID: ${{ steps.trigger.outputs.execution_id }}
+        run: |
+          URL="$TOSCA_CLOUD_URL/_playlists/api/v2/playlistRuns/$EXECUTION_ID"
+          TIMEOUT_MIN=120
+          POLL_SEC=30
+          ELAPSED=0
+          while [ $ELAPSED -lt $((TIMEOUT_MIN * 60)) ]; do
+            RESP=$(curl -s -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" "$URL")
+            STATE=$(echo "$RESP" | jq -r '.state // "Unknown"')
+            echo "State: $STATE"
+            case "$STATE" in
+              Completed|Succeeded) echo "state=succeeded" >> $GITHUB_OUTPUT; exit 0 ;;
+              Failed) echo "state=failed" >> $GITHUB_OUTPUT; exit 0 ;;
+              Cancelled|Canceled|Canceling) echo "state=canceled" >> $GITHUB_OUTPUT; exit 0 ;;
+            esac
+            sleep $POLL_SEC
+            ELAPSED=$((ELAPSED + POLL_SEC))
+          done
+          echo "Timeout waiting for execution"
+          exit 1
+
+      - name: Get JUnit results
+        id: junit
+        env:
+          TOSCA_CLOUD_URL: ${{ secrets.TOSCA_CLOUD_URL }}
+          TOKEN: ${{ steps.token.outputs.token }}
+          EXECUTION_ID: ${{ steps.trigger.outputs.execution_id }}
+        run: |
+          curl -s -H "Authorization: Bearer $TOKEN" -H "Accept: application/xml" \
+            "$TOSCA_CLOUD_URL/_playlists/api/v2/playlistRuns/$EXECUTION_ID/junit" \
+            -o junit-results.xml
+          if [ ! -s junit-results.xml ]; then
+            echo "No JUnit output or request failed"
+            exit 1
+          fi
+          echo "JUnit results saved to junit-results.xml"
+
+      - name: Adapt Tosca results for Pulse (optional)
+        if: vars.USE_TOSCA_ADAPTER == 'true'
+        env:
+          TOSCA_RESULTS_INPUT: ${{ github.workspace }}/junit-results.xml
+          TOSCA_RESULTS_OUTPUT: ${{ github.workspace }}/junit-results.xml
+        run: |
+          cd "qTest/qTest-Tosca-Integration/scripts"
+          npm install
+          node tosca-result-adapter.js "$TOSCA_RESULTS_INPUT" "$TOSCA_RESULTS_OUTPUT"
+
+      - name: Upload JUnit artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-results
+          path: junit-results.xml
+
+      - name: Send results to qTest via Pulse
+        env:
+          PULSE_WEBHOOK_URL: ${{ secrets.PULSE_WEBHOOK_URL }}
+          PULSE_WEBHOOK_SECRET: ${{ secrets.PULSE_WEBHOOK_SECRET }}
+          QTEST_PROJECT_ID: ${{ env.QTEST_PROJECT_ID }}
+          QTEST_TEST_CYCLE_ID: ${{ env.QTEST_TEST_CYCLE_ID }}
+          RESULTS_PATH: ${{ github.workspace }}/junit-results.xml
+        run: |
+          cd "qTest/qTest-Tosca-Integration/Pulse Delivery"
+          npm install
+          node delivery.js
+        continue-on-error: true
