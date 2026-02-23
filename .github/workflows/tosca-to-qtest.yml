@@ -58,6 +58,9 @@ jobs:
           if [ -z "$EXEC_ID" ]; then
             echo "Failed to trigger Tosca playlist run (HTTP $HTTP_CODE). Response body:"
             echo "$BODY"
+            if [ "$HTTP_CODE" = "401" ]; then
+              echo "::notice title=401 Unauthorized::Check that TOSCA_CLOUD_URL matches the workspace your token is for (same tenant/workspace as in Swagger), and that TOSCA_E2G_AUTH_URL, TOSCA_CLIENT_ID, and TOSCA_CLIENT_SECRET are correct."
+            fi
             exit 1
           fi
           echo "execution_id=$EXEC_ID" >> $GITHUB_OUTPUT
@@ -75,7 +78,7 @@ jobs:
           POLL_SEC=30
           ELAPSED=0
           while [ $ELAPSED -lt $((TIMEOUT_MIN * 60)) ]; do
-            RESP=$(curl -s -L -H "Authorization: Bearer $TOKEN" -H "Accept: application/json" "$URL")
+            RESP=$(curl -s -L -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -H "Accept: application/json" "$URL")
             STATE=$(echo "$RESP" | jq -r '.state // "Unknown"')
             echo "State: $STATE"
             case "$STATE" in
