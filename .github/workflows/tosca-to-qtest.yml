@@ -129,15 +129,13 @@ jobs:
           name: junit-results
           path: junit-results.xml
 
-      - name: Send results to qTest via Pulse
+      - name: Report results to qTest (Pulse)
         env:
           PULSE_WEBHOOK_URL: ${{ secrets.PULSE_WEBHOOK_URL }}
-          PULSE_WEBHOOK_SECRET: ${{ secrets.PULSE_WEBHOOK_SECRET }}
           QTEST_PROJECT_ID: ${{ env.QTEST_PROJECT_ID }}
           QTEST_TEST_CYCLE_ID: ${{ env.QTEST_TEST_CYCLE_ID }}
-          RESULTS_PATH: ${{ github.workspace }}/junit-results.xml
         run: |
-          cd "qTest/qTest-Tosca-Integration/Pulse Delivery"
-          npm install
-          node delivery.js
+          B64=$(base64 -w 0 junit-results.xml)
+          BODY=$(jq -n --arg pid "$QTEST_PROJECT_ID" --arg cid "$QTEST_TEST_CYCLE_ID" --arg r "$B64" '{projectId: $pid, testcycle: $cid, result: $r}')
+          curl -s -L -X POST -H "Content-Type: application/json" -d "$BODY" "$PULSE_WEBHOOK_URL"
         continue-on-error: true
