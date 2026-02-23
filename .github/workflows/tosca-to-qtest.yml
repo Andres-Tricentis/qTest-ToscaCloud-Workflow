@@ -57,7 +57,11 @@ jobs:
           EXEC_ID=$(echo "$BODY" | jq -r '.executionId // .id // empty' 2>/dev/null) || true
           if [ -z "$EXEC_ID" ]; then
             echo "Failed to trigger Tosca playlist run (HTTP $HTTP_CODE). Response body:"
-            echo "$BODY"
+            if [ -z "$BODY" ]; then
+              echo "(empty)"
+            else
+              echo "$BODY"
+            fi
             if [ "$HTTP_CODE" = "401" ]; then
               echo "::notice title=401 Unauthorized::Check that TOSCA_CLOUD_URL matches the workspace your token is for (same tenant/workspace as in Swagger), and that TOSCA_E2G_AUTH_URL, TOSCA_CLIENT_ID, and TOSCA_CLIENT_SECRET are correct."
             fi
@@ -80,11 +84,12 @@ jobs:
           while [ $ELAPSED -lt $((TIMEOUT_MIN * 60)) ]; do
             RESP=$(curl -s -L -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" -H "Accept: application/json" "$URL")
             STATE=$(echo "$RESP" | jq -r '.state // "Unknown"')
+            STATE_LOWER=$(echo "$STATE" | tr '[:upper:]' '[:lower:]')
             echo "State: $STATE"
-            case "$STATE" in
-              Completed|Succeeded) echo "state=succeeded" >> $GITHUB_OUTPUT; exit 0 ;;
-              Failed) echo "state=failed" >> $GITHUB_OUTPUT; exit 0 ;;
-              Cancelled|Canceled|Canceling) echo "state=canceled" >> $GITHUB_OUTPUT; exit 0 ;;
+            case "$STATE_LOWER" in
+              completed|succeeded) echo "state=succeeded" >> $GITHUB_OUTPUT; exit 0 ;;
+              failed) echo "state=failed" >> $GITHUB_OUTPUT; exit 0 ;;
+              cancelled|canceled|canceling) echo "state=canceled" >> $GITHUB_OUTPUT; exit 0 ;;
             esac
             sleep $POLL_SEC
             ELAPSED=$((ELAPSED + POLL_SEC))
