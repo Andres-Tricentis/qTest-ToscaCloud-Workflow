@@ -54,7 +54,7 @@ jobs:
             -d "{\"playlistId\":\"$PLAYLIST_ID\",\"private\":false}")
           HTTP_CODE=$(echo "$RESP" | tail -n1)
           BODY=$(echo "$RESP" | sed '$d')
-          EXEC_ID=$(echo "$BODY" | jq -r '.executionId // .id // empty' 2>/dev/null)
+          EXEC_ID=$(echo "$BODY" | jq -r '.executionId // .id // empty' 2>/dev/null) || true
           if [ -z "$EXEC_ID" ]; then
             echo "Failed to trigger Tosca playlist run (HTTP $HTTP_CODE). Response body:"
             echo "$BODY"
