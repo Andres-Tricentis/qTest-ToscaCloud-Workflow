@@ -47,14 +47,17 @@ jobs:
           PLAYLIST_ID: ${{ secrets.TOSCA_PLAYLIST_ID }}
           TOKEN: ${{ steps.token.outputs.token }}
         run: |
-          RESP=$(curl -s -X POST "$TOSCA_CLOUD_URL/_playlists/api/v2/playlistRuns/" \
+          RESP=$(curl -s -w "\n%{http_code}" -X POST "$TOSCA_CLOUD_URL/_playlists/api/v2/playlistRuns/" \
             -H "Authorization: Bearer $TOKEN" \
             -H "Content-Type: application/json" \
             -H "Accept: application/json" \
             -d "{\"playlistId\":\"$PLAYLIST_ID\",\"private\":false}")
-          EXEC_ID=$(echo "$RESP" | jq -r '.executionId // .id // empty')
+          HTTP_CODE=$(echo "$RESP" | tail -n1)
+          BODY=$(echo "$RESP" | sed '$d')
+          EXEC_ID=$(echo "$BODY" | jq -r '.executionId // .id // empty' 2>/dev/null)
           if [ -z "$EXEC_ID" ]; then
-            echo "Failed to trigger run: $RESP"
+            echo "Failed to trigger Tosca playlist run (HTTP $HTTP_CODE). Response body:"
+            echo "$BODY"
             exit 1
           fi
           echo "execution_id=$EXEC_ID" >> $GITHUB_OUTPUT
