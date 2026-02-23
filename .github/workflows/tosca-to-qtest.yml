@@ -123,6 +123,12 @@ jobs:
           npm install
           node tosca-result-adapter.js "$TOSCA_RESULTS_INPUT" "$TOSCA_RESULTS_OUTPUT"
 
+      - name: Inject timestamp into JUnit
+        run: |
+          TIMESTAMP=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+          sed -i "s/<testsuite /<testsuite timestamp=\"$TIMESTAMP\" /" junit-results.xml
+          echo "Injected timestamp: $TIMESTAMP"
+
       - name: Upload JUnit artifact
         uses: actions/upload-artifact@v4
         with:
