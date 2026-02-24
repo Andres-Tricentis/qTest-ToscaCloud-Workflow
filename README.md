@@ -108,6 +108,3 @@ These tell the workflow **which qTest project and test cycle** to use for the re
 ## Next Steps
 
 - **Run the workflow** once manually from the **Actions** tab to confirm end-to-end: Tosca run → JUnit artifact → qTest updated.
-- To **trigger the workflow from Pulse** (e.g. via a Rule), use the `repository_dispatch` event with `event_type: tosca-run` and a GitHub PAT stored as `GITHUB_DISPATCH_TOKEN`; see the main [README](README.md) in this repo for the API details.
-
-For more detail on the workflow, Pulse parser, and delivery script, see the rest of this repository (e.g. `README.md`, `docs/`, and the workflow file under `.github/workflows/`).
