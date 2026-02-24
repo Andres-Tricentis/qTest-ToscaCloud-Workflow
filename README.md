@@ -50,7 +50,7 @@ Each section below gives the exact steps and values.
 ## 2. qTest Pulse Setup
 
 - In the **qTest Pulse workspace** that corresponds to your qTest project:
-  - **Import the Rules** from the `Pulse Rules` folder in this repo.
+  - **Import the Rules** from the [Pulse Rules](https://github.com/Andres-Tricentis/qTest-ToscaCloud-Integration/tree/main/Pulse%20Rules) folder in this repo.
   - After import, open **Constants** and set:
 
   | Constant    | Value |
