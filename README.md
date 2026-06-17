@@ -55,7 +55,7 @@ Each section below gives the exact steps and values.
 
   | Constant    | Value |
   |-------------|--------|
-  | **QTEST_TOKEN** | Your personal **Bearer token** from qTest: **Downloads** → **API & SDK**. ([Get token](https://docs.tricentis.com/qtest-saas/content/overview/download_qtest_resources_page.htm)). **NOTE:** You do not need to include the workd Bearer |
+  | **QTEST_TOKEN** | Your personal **Bearer token** from qTest: **Downloads** → **API & SDK**. ([Get token](https://docs.tricentis.com/qtest-saas/content/overview/download_qtest_resources_page.htm)). **NOTE:** Do not include the word 'Bearer' |
   | **ManagerURL**   | Base qTest Manager domain **without** protocol (e.g. `sademo.qtestnet.com`). The script uses HTTPS. |
 
 - The **Pulse webhook URL** you will need for GitHub is found in Pulse by opening the trigger named **GitHub_Actions_Pipeline**; copy that URL for the `PULSE_WEBHOOK_URL` secret (see GitHub Setup below).
